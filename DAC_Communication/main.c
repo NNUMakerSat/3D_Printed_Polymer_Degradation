@@ -1,10 +1,10 @@
 #include <msp430.h> 
 
-#define DAC_CLK 0x10
-#define DAC_DATA 0x20
-#define SYNC 0x08
-#define FIN 0x02
-#define RIN 0x01
+#define DAC_CLK 0x10		// P2.4
+#define DAC_DATA 0x20		// P2.5
+#define SYNC 0x08			// P2.3
+#define FIN 0x02			// P4.2
+#define RIN 0x01			// P4.1
 
 
 void DAC_Write(void);
