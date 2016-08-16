@@ -1,12 +1,19 @@
+/*
+ * Original Code taken from Connor Nogales and
+ * changed for SPI vs. bit banging by Aaron Ewing
+ * on 8/12/2016 with Connor's permission
+ */
 #include <msp430.h> 
 
-#define DAC_CLK 0x10		// P2.4
-#define DAC_DATA 0x20		// P2.5
-#define SYNC 0x08			// P2.3
-#define FIN 0x02			// P4.2
-#define RIN 0x01			// P4.1
+#define UCA0SOMI 0x02		// P2.1
+#define UCA0CLK 0x04		// P2.2
+#define UCA0SIMO 0x01		// P2.0
 
-
+/*
+#define UCA0SOMI 0x10		// P2.4
+#define UCA0CLK 0x20		// P2.5
+#define UCA0SIMO 0x08			// P2.3
+*/
 void DAC_Write(void);
 void Dec_To_Bin(int);
 void Timer_A_Setup(void);
@@ -14,101 +21,96 @@ void Timer_A_Setup(void);
 unsigned int bin[12];
 int DAC_Value = 2000;
 
-/*
- * main.c
- */
-
+// main.c
 int main(void) {
     WDTCTL = WDTPW | WDTHOLD;	                // Stop watchdog timer
-	
-    PM5CTL0 &= ~LOCKLPM5;                       // disable high impedence mode
+	PM5CTL0 &= ~LOCKLPM5;                       // disable high impedence mode
 
     Timer_A_Setup();                            // set up timer
 
-    // configure motor forward / reverse pins; pins P4.0 and P4.1
-    P4SEL0 &= ~FIN & ~RIN;                      // configure as GPIO's
-    P4SEL1 &= ~FIN & ~RIN;
-    P4DIR |= FIN | RIN;                         // output direction
-
-    // select forward direction on motor
-    P4OUT |= FIN;
-    P4OUT &= ~RIN;
+    UCA0CTLW0 |= UCSWRST;                                // enable eUSCI initialization of registers
 
     // configure P2.4 and P2.5 as GPIO's
-    P2SEL0 &= ~DAC_CLK & ~DAC_DATA & ~SYNC;
-    P2SEL1 &= ~DAC_CLK & ~DAC_DATA & ~SYNC;
-    P2DIR |= DAC_CLK | DAC_DATA | SYNC;         // configure P2.4 and P2.5 as output pins
-    P2OUT &= ~DAC_CLK & ~DAC_DATA;              // initialize the pins low
-    P2OUT |= SYNC;                              // bring the SYNC line high
+    P2SEL0 &= ~UCA0SOMI & ~UCA0CLK & ~UCA0SIMO;
+    P2SEL1 &= ~UCA0SOMI & ~UCA0CLK & ~UCA0SIMO;
+    P2DIR |= UCA0SOMI | UCA0CLK | UCA0SIMO;         // configure P2.1 and P2.2 as output pins
+
+    P2OUT &= ~UCA0SOMI & ~UCA0CLK;              // initialize the pins low
+    P2OUT |= UCA0SIMO;                              // bring the UCA0SIMO line high
+
+    UCA0MCTLW = 0x00;                                    // clear modulation register, required for SPI
+
+    UCA0CTLW0 |= UCMST | UCSYNC | UCSSEL_2 | UCMSB;      // select master mode | select SPI mode | SMCLK | MSB first
+
+    __delay_cycles(20);                                  // wait for UCA0SIMO and UCA0SOMI to settle to final volatage
+
+    UCA0CTLW0 &= ~UCSWRST;                               // lock eUSCI registers
+
+    UCA0IFG &= ~UCTXIFG & ~UCRXIFG;                      // clear RX and TX interrupt flags
 
     __enable_interrupt();                       // enable interrupts
 
-    int DAC_Min = 500;                         // set to go up to
+    UCA0IE |= UCTXIE;                                    // enable TX interrupt
 
-while (1)
-{
-    while (DAC_Value > DAC_Min)
-    {
 
-    }
-    DAC_Value = 2000;
+    while (1) {
 
-}
-	//return 0;
+	}
 }
 
 
 void DAC_Write(void)
 {
-    P2OUT&= ~SYNC;                      // pull the SYNC line low to begin write sequence
+    P2OUT&= ~UCA0SIMO;                      // pull the UCA0SIMO line low to begin write sequence
 
     // write first two bits to be zero, since the data line is already low begining the clock cycle with the data lines low
     // will write zero to the first two bits
-    P2OUT |= DAC_CLK;
+    P2OUT |= UCA0SOMI;
     __delay_cycles(12);
-    P2OUT &= ~DAC_CLK;
+    P2OUT &= ~UCA0SOMI;
     __delay_cycles(12);
     // second clock cycle
-    P2OUT |= DAC_CLK;
+    P2OUT |= UCA0SOMI;
     __delay_cycles(12);
-    P2OUT &= ~DAC_CLK;
+    P2OUT &= ~UCA0SOMI;
     __delay_cycles(12);
 
     int i;
     for (i = 11; i >= 0; i--)
     {
-        P2OUT |= DAC_CLK;               // begin clock sequency
+        P2OUT |= UCA0SOMI;               // begin clock sequency
 
         if (bin[i] == 1)
         {
-            P2OUT |= DAC_DATA;          // if set pin high if that spot is a 1 in binary
+            P2OUT |= UCA0CLK;          // if set pin high if that spot is a 1 in binary
         }
         else
         {
-            P2OUT &= ~DAC_DATA;         // set data line low if spot is a 0 in binary
+            P2OUT &= ~UCA0CLK;         // set data line low if spot is a 0 in binary
         }
         __delay_cycles(2);              // wait 2 clock cycles
 
-        P2OUT &= ~DAC_CLK;              // bring clock low
+        P2OUT &= ~UCA0SOMI;              // bring clock low
 
         __delay_cycles(12);              // wait again
     }
 
     // finish writing to the 16 bit register
-    P2OUT |= DAC_CLK;
+    P2OUT |= UCA0SOMI;
     __delay_cycles(12);
-    P2OUT &= ~DAC_CLK;
+    P2OUT &= ~UCA0SOMI;
     __delay_cycles(12);
     // second clock cycle
-    P2OUT |= DAC_CLK;
+    P2OUT |= UCA0SOMI;
     __delay_cycles(12);
-    P2OUT &= ~DAC_CLK;
+    P2OUT &= ~UCA0SOMI;
     __delay_cycles(12);
 
-    P2OUT &= ~DAC_DATA;         // set data line low
+    P2OUT &= ~UCA0CLK;         // set data line low
     __delay_cycles(100);
 
-    P2OUT |= SYNC;                  // pull SYNC line high to indicate write is complete
+    P2OUT |= UCA0SIMO;                  // pull UCA0SIMO line high to indicate write is complete
+
 }
 
 void Timer_A_Setup(void)
@@ -207,5 +209,5 @@ __interrupt void TA0_ISR (void)
     Dec_To_Bin(DAC_Value);                      // convert DAC_Value to binary
     DAC_Write();                                // Write DAC_Value to DAC
     DAC_Value--;                                // incrament DAC Value
-    //__delay_cycles(2000);
+    UCA0TXBUF = DAC_Value;
 }
