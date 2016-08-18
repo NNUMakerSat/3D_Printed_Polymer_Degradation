@@ -127,3 +127,8 @@ example/Debug/main.obj
 New folder/Debug/makefile
 *.ccxml
 DAC_Communication/Debug/makefile
+*.mk
+*.opt
+*.obj
+*.mk
+*.mk
