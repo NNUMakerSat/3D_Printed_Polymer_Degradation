@@ -49,6 +49,8 @@ int main(void) {
     }
 }
 
+// random stuff
+
 
 void Configure_SPI_Master_Registers(void)
 {
