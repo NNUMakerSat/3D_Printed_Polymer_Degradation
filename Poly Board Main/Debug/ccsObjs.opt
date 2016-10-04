@@ -1,0 +1,1 @@
+"./Circular_Buffer.obj" "./Collect_Data.obj" "./Freq_Capture.obj" "./Initialize.obj" "./Motor_Control.obj" "./SPI_Polling.obj" "./main.obj" "../lnk_msp430fr5969.cmd" -llibmath.a -llibc.a 
